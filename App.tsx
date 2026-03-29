@@ -9,7 +9,8 @@ import {
   Text,
   TouchableOpacity,
 } from 'react-native';
-import { WebView, type WebViewNavigation, type WebViewMessageEvent } from 'react-native-webview';
+import { WebView } from 'react-native-webview';
+import type { WebViewNavigation, WebViewMessageEvent } from 'react-native-webview';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
@@ -80,7 +81,7 @@ export default function App() {
     (async () => {
       try {
         pushTokenRef.current = await getExpoPushToken();
-      } catch { /* ignorar */ }
+      } catch (_e) { /* ignorar */ }
     })();
   }, []);
 
@@ -96,7 +97,7 @@ export default function App() {
           );
         }
       });
-    } catch { /* Expo Go */ }
+    } catch (_e) { /* Expo Go */ }
     return () => { sub?.remove?.(); };
   }, []);
 
@@ -135,7 +136,7 @@ export default function App() {
       if (data.type === 'requestPushToken') {
         injectToken();
       }
-    } catch { /* mensaje no JSON, ignorar */ }
+    } catch (_e) { /* mensaje no JSON, ignorar */ }
   }, [injectToken]);
 
   const onNavigationStateChange = useCallback((state: WebViewNavigation) => {
