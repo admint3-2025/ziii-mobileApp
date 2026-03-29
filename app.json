@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "ZIII HoS",
+    "slug": "ziii-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1A2B4A"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ziii.hos.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1A2B4A"
+      },
+      "package": "com.ziii.hos.mobile",
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1A2B4A",
+          "sounds": []
+        }
+      ]
+    ],
+    "scheme": "ziii-hos",
+    "extra": {
+      "eas": {
+        "projectId": "2dc3cb10-11c8-4ff1-a2cd-36793e417fab"
+      }
+    }
+  }
+}
