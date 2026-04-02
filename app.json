@@ -44,6 +44,12 @@
       ]
     ],
     "scheme": "ziii-hos",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2dc3cb10-11c8-4ff1-a2cd-36793e417fab"
+    },
     "extra": {
       "eas": {
         "projectId": "2dc3cb10-11c8-4ff1-a2cd-36793e417fab"
