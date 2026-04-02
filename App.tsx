@@ -99,9 +99,11 @@ export default function App() {
 
   // Listener de notificaciones: cuando el usuario toca una, recarga/navega
   useEffect(() => {
-    let sub: Notifications.Subscription;
+    let responseSub: Notifications.Subscription;
+    let receivedSub: Notifications.Subscription;
     try {
-      sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      // Tap en la notificacion → navegar a la URL del ticket
+      responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content.data;
         if (data?.url && webViewRef.current) {
           webViewRef.current.injectJavaScript(
@@ -109,8 +111,14 @@ export default function App() {
           );
         }
       });
+      // Notificacion recibida mientras la app esta abierta → avisar al WebView
+      receivedSub = Notifications.addNotificationReceivedListener(() => {
+        webViewRef.current?.injectJavaScript(
+          `window.dispatchEvent(new CustomEvent('nativeNotificationReceived')); true;`
+        );
+      });
     } catch (_e) { /* Expo Go */ }
-    return () => { sub?.remove?.(); };
+    return () => { responseSub?.remove?.(); receivedSub?.remove?.(); };
   }, []);
 
   // Android: botón atrás navega en el WebView
