@@ -21,15 +21,18 @@ const APP_URL = 'https://ziii-helpdesk.ddns.net';
 const BRAND_COLOR = '#1A2B4A';
 const ERROR_RETRY_DELAY = 3000;
 
-// Mostrar notificaciones aunque la app esté en primer plano
+// Mostrar notificaciones aunque la app esté en primer plano (API SDK 54)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,   // banner/heads-up visible en primer plano
+    shouldShowList: true,     // también en bandeja de notificaciones
     shouldPlaySound: true,
     shouldSetBadge: true,
-    shouldShowInForeground: true,
   }),
 });
+
+// Altura de la barra de estado de Android (estática, disponible tras primer render)
+const STATUSBAR_HEIGHT = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -76,11 +79,20 @@ export default function App() {
   const [hasError, setHasError] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
 
-  // Obtener push token al iniciar
+  // Obtener push token al iniciar e inyectarlo en cuanto esté disponible
   useEffect(() => {
     (async () => {
       try {
-        pushTokenRef.current = await getExpoPushToken();
+        const token = await getExpoPushToken();
+        if (!token) return;
+        pushTokenRef.current = token;
+        // Inyectar inmediatamente si la página ya cargó (resuelve race condition)
+        const script = `(function(){
+          window.__expoPushToken = ${JSON.stringify(token)};
+          window.dispatchEvent(new CustomEvent('expoPushTokenReady',
+            { detail: { token: ${JSON.stringify(token)} } }));
+        })(); true;`;
+        webViewRef.current?.injectJavaScript(script);
       } catch (_e) { /* ignorar */ }
     })();
   }, []);
@@ -202,6 +214,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BRAND_COLOR,
+    paddingTop: STATUSBAR_HEIGHT, // evita que el WebView quede bajo la barra de estado
   },
   webview: {
     flex: 1,
