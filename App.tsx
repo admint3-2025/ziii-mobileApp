@@ -192,6 +192,7 @@ export default function App() {
         ref={webViewRef}
         source={{ uri: APP_URL }}
         style={styles.webview}
+        userAgent="ZIIIHoSApp/1.0"
         onNavigationStateChange={onNavigationStateChange}
         onLoadEnd={injectToken}
         onMessage={onMessage}
