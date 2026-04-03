@@ -14,6 +14,9 @@ import type { WebViewNavigation, WebViewMessageEvent } from 'react-native-webvie
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import * as FileSystem from 'expo-file-system';
+import { File as FSFile, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 // ─── Configuración ────────────────────────────────────────────────────────────
 
@@ -151,12 +154,28 @@ export default function App() {
 
   // Mensajes desde el WebView → nativo
   const onMessage = useCallback((event: WebViewMessageEvent) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'requestPushToken') {
-        injectToken();
-      }
-    } catch (_e) { /* mensaje no JSON, ignorar */ }
+    (async () => {
+      try {
+        const data = JSON.parse(event.nativeEvent.data);
+        if (data.type === 'requestPushToken') {
+          injectToken();
+        } else if (data.type === 'downloadPDF') {
+          // PDF generado en el WebView: guardarlo y abrirlo con visor nativo
+          const base64 = (data.data as string).replace(/^data:application\/pdf;base64,/, '');
+          const filename = (data.filename as string) || 'documento.pdf';
+          const file = new FSFile(Paths.cache, filename);
+          file.write(base64, { encoding: 'base64' });
+          const canShare = await Sharing.isAvailableAsync();
+          if (canShare) {
+            await Sharing.shareAsync(file.uri, {
+              mimeType: 'application/pdf',
+              dialogTitle: 'Abrir PDF',
+              UTI: 'com.adobe.pdf',
+            });
+          }
+        }
+      } catch (_e) { /* mensaje no JSON o error al guardar, ignorar */ }
+    })();
   }, [injectToken]);
 
   const onNavigationStateChange = useCallback((state: WebViewNavigation) => {
