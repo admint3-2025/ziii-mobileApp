@@ -14,7 +14,6 @@ import type { WebViewNavigation, WebViewMessageEvent } from 'react-native-webvie
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import * as FileSystem from 'expo-file-system';
 import { File as FSFile, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
@@ -73,6 +72,25 @@ async function getExpoPushToken(): Promise<string | null> {
   }
 }
 
+function buildBridgeInjectionScript(token: string | null): string {
+  const tokenScript = token
+    ? `
+      window.__expoPushToken = ${JSON.stringify(token)};
+      window.dispatchEvent(new CustomEvent('expoPushTokenReady', {
+        detail: { token: ${JSON.stringify(token)} }
+      }));
+    `
+    : '';
+
+  return `
+    (function() {
+      window.__ziiiNativeDownloadMode = 'url';
+      ${tokenScript}
+    })();
+    true;
+  `;
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function App() {
@@ -90,12 +108,7 @@ export default function App() {
         if (!token) return;
         pushTokenRef.current = token;
         // Inyectar inmediatamente si la página ya cargó (resuelve race condition)
-        const script = `(function(){
-          window.__expoPushToken = ${JSON.stringify(token)};
-          window.dispatchEvent(new CustomEvent('expoPushTokenReady',
-            { detail: { token: ${JSON.stringify(token)} } }));
-        })(); true;`;
-        webViewRef.current?.injectJavaScript(script);
+        webViewRef.current?.injectJavaScript(buildBridgeInjectionScript(token));
       } catch (_e) { /* ignorar */ }
     })();
   }, []);
@@ -141,15 +154,32 @@ export default function App() {
   const injectToken = useCallback(() => {
     setIsLoading(false);
     setHasError(false);
-    if (!pushTokenRef.current || !webViewRef.current) return;
-    const script = `
-      (function() {
-        window.__expoPushToken = ${JSON.stringify(pushTokenRef.current)};
-        window.dispatchEvent(new CustomEvent('expoPushTokenReady', { detail: { token: ${JSON.stringify(pushTokenRef.current)} } }));
-      })();
-      true;
-    `;
-    webViewRef.current.injectJavaScript(script);
+    if (!webViewRef.current) return;
+    webViewRef.current.injectJavaScript(buildBridgeInjectionScript(pushTokenRef.current));
+  }, []);
+
+  const sharePdfFile = useCallback(async (fileUri: string) => {
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) return;
+
+    await Sharing.shareAsync(fileUri, {
+      mimeType: 'application/pdf',
+      dialogTitle: 'Abrir PDF',
+      UTI: 'com.adobe.pdf',
+    });
+  }, []);
+
+  const savePdfFromBase64 = useCallback(async (dataUrl: string, filename: string) => {
+    const base64 = String(dataUrl).replace(/^data:application\/pdf;base64,/, '');
+    const file = new FSFile(Paths.cache, filename);
+    file.create({ intermediates: true, overwrite: true });
+    file.write(base64, { encoding: 'base64' });
+    return file;
+  }, []);
+
+  const downloadPdfFromUrl = useCallback(async (url: string, filename: string) => {
+    const file = new FSFile(Paths.cache, filename);
+    return await FSFile.downloadFileAsync(url, file, { idempotent: true });
   }, []);
 
   // Mensajes desde el WebView → nativo
@@ -159,24 +189,22 @@ export default function App() {
         const data = JSON.parse(event.nativeEvent.data);
         if (data.type === 'requestPushToken') {
           injectToken();
-        } else if (data.type === 'downloadPDF') {
-          // PDF generado en el WebView: guardarlo y abrirlo con visor nativo
-          const base64 = (data.data as string).replace(/^data:application\/pdf;base64,/, '');
+        } else if (data.type === 'downloadPDFUrl') {
+          const url = String(data.url || '');
+          if (!url) return;
           const filename = (data.filename as string) || 'documento.pdf';
-          const file = new FSFile(Paths.cache, filename);
-          file.write(base64, { encoding: 'base64' });
-          const canShare = await Sharing.isAvailableAsync();
-          if (canShare) {
-            await Sharing.shareAsync(file.uri, {
-              mimeType: 'application/pdf',
-              dialogTitle: 'Abrir PDF',
-              UTI: 'com.adobe.pdf',
-            });
-          }
+          const file = await downloadPdfFromUrl(url, filename);
+          await sharePdfFile(file.uri);
+        } else if (data.type === 'downloadPDF') {
+          const filename = (data.filename as string) || 'documento.pdf';
+          const file = await savePdfFromBase64(String(data.data || ''), filename);
+          await sharePdfFile(file.uri);
         }
-      } catch (_e) { /* mensaje no JSON o error al guardar, ignorar */ }
+      } catch (error) {
+        console.error('[WebView] PDF download failed:', error);
+      }
     })();
-  }, [injectToken]);
+  }, [downloadPdfFromUrl, injectToken, savePdfFromBase64, sharePdfFile]);
 
   const onNavigationStateChange = useCallback((state: WebViewNavigation) => {
     canGoBackRef.current = state.canGoBack;
@@ -212,6 +240,7 @@ export default function App() {
         source={{ uri: APP_URL }}
         style={styles.webview}
         userAgent="ZIIIHoSApp/1.0"
+        injectedJavaScriptBeforeContentLoaded={buildBridgeInjectionScript(null)}
         onNavigationStateChange={onNavigationStateChange}
         onLoadEnd={injectToken}
         onMessage={onMessage}
